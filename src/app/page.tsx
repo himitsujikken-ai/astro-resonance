@@ -1,7 +1,5 @@
 "use client";
 import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Activity, Sparkles, Zap, Brain, Mic, Play, Square, Download, RotateCcw } from "lucide-react";
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -12,6 +10,8 @@ import {
   Legend,
 } from 'chart.js';
 import { Radar } from 'react-chartjs-2';
+import Link from 'next/link';
+import StaggeredText, { StaggerItem } from '@/components/StaggeredText';
 
 import { charMap, elementFreqs, calculateSanmeigaku } from "@/utils/astroLogic";
 import { createReverb, bufferToWave } from "@/utils/audioUtils";
@@ -33,8 +33,18 @@ ChartJS.register(
 // -----------------------------------------------------------------------------
 export default function Home() {
   // --- UI Steps State ---
-  // Step 1: Input -> Step 2: Sound Check -> Step 3: Mic Input -> Step 4: Final Result
-  const [currentStep, setCurrentStep] = useState(1);
+  // In index.html, steps are revealed (stacked). 
+  // Step 1 is always visible.
+  // Step 2 is revealed after analysis.
+  // Step 3 is revealed after sound check (or timeout).
+  // Step 4 is revealed after mic stop (hiding step 3? No, explicitly: step3.style.display="none", step4="block")
+  // So: 1 & 2 can coexist. 2 & 3 can coexist. 
+  // But 3 and 4 are mutually exclusive usually?
+  // Let's track "max reached step" and specific visibility flags.
+
+  const [isStep2Visible, setIsStep2Visible] = useState(false);
+  const [isStep3Visible, setIsStep3Visible] = useState(false);
+  const [isStep4Visible, setIsStep4Visible] = useState(false); // When 4 is visible, 3 is usually hidden in original logic
 
   // --- Data State ---
   const [name, setName] = useState("たなかたろう");
@@ -59,6 +69,7 @@ export default function Home() {
 
   // Refs
   const visualizerCanvasRef = useRef<HTMLCanvasElement>(null);
+  const micVisualizerCanvasRef = useRef<HTMLCanvasElement>(null); // Separate ref for step 3 if needed, or reuse logic
   const requestRef = useRef<number>(0);
 
   // UseEffect for cleanup
@@ -74,14 +85,23 @@ export default function Home() {
   // Step 1: Run Analysis (Sanmeigaku)
   // ---------------------------------------------------------------------------
   const handleAnalyzeDate = () => {
-    if (!name || !birthDate) return;
+    if (!name || !birthDate) {
+      alert("入力してください");
+      return;
+    }
     const result = calculateSanmeigaku(birthDate);
     setSanmeigakuResult(result);
-    setCurrentStep(2);
+    setIsStep2Visible(true);
+    // In original HTML, Step 3 and 4 are hidden if they were open? 
+    // The original didn't reset, but logically in React we might want to if re-analyzing.
+    // For faithful reproduction of "runAnalysis()", it just shows step2.
+    // It implies we might want to reset subsequent steps if user changes input?
+    setIsStep3Visible(false);
+    setIsStep4Visible(false);
   };
 
   // ---------------------------------------------------------------------------
-  // Audio Logic: Play Guardian Sound
+  // Audio Logic
   // ---------------------------------------------------------------------------
   const initAudioContext = () => {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -96,12 +116,16 @@ export default function Home() {
     const conv = ctx.createConvolver();
     conv.buffer = createReverb(ctx);
 
+    // Dry path (Direct sound)
+    master.connect(dest);
+
+    // Wet path (Reverb)
     master.connect(conv);
     conv.connect(dest);
 
     // If real-time context, connect to analyser for visualization
     if (ctx instanceof AudioContext && analyser) {
-      conv.connect(analyser);
+      master.connect(analyser); // Visualize dry signal for clarity
     }
 
     // Name Frequencies
@@ -111,7 +135,7 @@ export default function Home() {
         osc.frequency.value = charMap[c];
         const g = ctx.createGain();
         g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(0.1, t + 0.1);
+        g.gain.linearRampToValueAtTime(0.3, t + 0.1);
         g.gain.exponentialRampToValueAtTime(0.001, t + 3);
 
         osc.connect(g);
@@ -128,7 +152,7 @@ export default function Home() {
 
     const gG = ctx.createGain();
     gG.gain.setValueAtTime(0, t);
-    gG.gain.linearRampToValueAtTime(0.15, t + 0.5);
+    gG.gain.linearRampToValueAtTime(0.4, t + 0.5);
     gG.gain.exponentialRampToValueAtTime(0.001, t + 4);
 
     gOsc.connect(gG);
@@ -148,7 +172,7 @@ export default function Home() {
       await ctx.resume();
     }
 
-    // Setup Analyser for visualizer if not exists
+    // Setup Analyser
     let currentAnalyser = analyser;
     if (!currentAnalyser) {
       currentAnalyser = ctx.createAnalyser();
@@ -161,8 +185,8 @@ export default function Home() {
     // Generate and Play (Realtime)
     playToneNodes(ctx, ctx.destination, ctx.currentTime, name, sanmeigakuResult.guardianElement);
 
-    // Start Visualizer
-    drawVisualizer(currentAnalyser);
+    // Start Visualizer logic (targeting the Step 2 canvas)
+    drawVisualizer(currentAnalyser, visualizerCanvasRef);
 
     // Generate Offline for Download
     const offlineCtx = new OfflineAudioContext(2, 44100 * 5, 44100);
@@ -170,27 +194,20 @@ export default function Home() {
     const renderedBuffer = await offlineCtx.startRendering();
     setGeneratedBuffer(renderedBuffer);
 
-    // Stop playing state after 5 seconds
+    // Timeout to reveal Step 3 as per index.html
     setTimeout(() => {
       setIsPlaying(false);
-      // Ensure we can move to next step
-      // Wait a bit for user to enjoy the sound, but button is available
-    }, 5000);
-  };
-
-  const moveToStep3 = () => {
-    // Stop visualizer loop
-    if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    setCurrentStep(3);
+      setIsStep3Visible(true);
+    }, 4000); // index.html uses 4000
   };
 
   // ---------------------------------------------------------------------------
   // Visualizer Logic
   // ---------------------------------------------------------------------------
-  const drawVisualizer = (analyserNode: AnalyserNode | null) => {
-    if (!analyserNode || !visualizerCanvasRef.current) return;
+  const drawVisualizer = (analyserNode: AnalyserNode | null, canvasRef: React.RefObject<HTMLCanvasElement | null>) => {
+    if (!analyserNode || !canvasRef.current) return;
 
-    const canvas = visualizerCanvasRef.current;
+    const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -201,7 +218,7 @@ export default function Home() {
       requestRef.current = requestAnimationFrame(draw);
       analyserNode.getByteTimeDomainData(dataArray);
 
-      ctx.fillStyle = "rgba(5, 5, 8, 0.2)"; // Fade effect
+      ctx.fillStyle = "#000";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.lineWidth = 2;
@@ -249,10 +266,22 @@ export default function Home() {
       newAnalyser.fftSize = 2048;
       source.connect(newAnalyser);
       setVoiceAnalyzer(newAnalyser);
-      setAnalyser(newAnalyser); // For visualizer to use
+      setAnalyser(newAnalyser); // Global analyser pointer if needed
 
       setIsRecording(true);
-      drawVisualizer(newAnalyser);
+      // index.html uses same #visualizer logic, but in React we might need to target the canvas in Step 3?
+      // index.html reuses #visualizer id for Step 2? No, id is unique. 
+      // ERROR in index.html: <canvas id="visualizer"></canvas> is in Step 2.
+      // Step 3 has no canvas in the provided HTML snippet.
+      // "visualizer" is only in Step 2.
+      // Yet startMic() calls drawVisualizer() which targets "visualizer".
+      // So when Mic is running, the canvas in Step 2 (if visible) shows the mic input?
+      // YES. In index.html, step2 is NOT hidden when step3 is shown.
+      // So the user looks at the canvas in Step 2 while recording in Step 3.
+      // I will replicate this behavior: Target the SINGLE visualizer canvas in Step 2.
+      // But wait, Step 3 is below Step 2.
+
+      drawVisualizer(newAnalyser, visualizerCanvasRef);
 
     } catch (e: any) {
       alert("マイクエラー: " + e.message);
@@ -283,17 +312,20 @@ export default function Home() {
 
     // Generate Comment
     let comment = "";
-    if (pitch > 0 && pitch < 150) {
-      comment = "深く落ち着いた、大地のような響き（土のエネルギー）。安定感があり、信頼を集める周波数です。";
+    if (pitch < 150) {
+      comment = "深く落ち着いた、大地のような響き（土のエネルギー）。<br>安定感があり、信頼を集める周波数です。";
     } else if (pitch < 300) {
-      comment = "温かみのある、水のような流動性を持つ響き。柔軟性と適応力を感じる周波数です。";
+      comment = "温かみのある、水のような流動性を持つ響き。<br>柔軟性と適応力を感じる周波数です。";
     } else if (pitch < 500) {
-      comment = "力強く、木々が伸びるような生命力を感じる響き。成長と発展を促す周波数です。";
-    } else if (pitch >= 500) {
-      comment = "高く澄んだ、火や金のような鋭い響き。直感力と決断力を高める周波数です。";
+      comment = "力強く、木々が伸びるような生命力を感じる響き。<br>成長と発展を促す周波数です。";
     } else {
-      comment = "音声が十分に検出されませんでした。もう一度試してみてください。";
+      comment = "高く澄んだ、火や金のような鋭い響き。<br>直感力と決断力を高める周波数です。";
     }
+    if (maxVal < 10) {
+      setVoicePitch(0);
+      comment = "音声が検出されませんでした。";
+    }
+
     setVoiceComment(comment);
 
     // Prepare Radar Data
@@ -305,32 +337,31 @@ export default function Home() {
       setMicStream(null);
     }
 
-    setCurrentStep(4);
+    // In index.html: step3.display="none", step4.display="block"
+    setIsStep3Visible(false);
+    setIsStep4Visible(true);
   };
 
   const prepareRadarData = (pitch: number) => {
-    // Helper to generate randomish data
+    // Helper
     const generateRandomData = (seedFreq: number) => {
-      const base = Math.min(80, Math.max(30, seedFreq / 8));
+      const base = Math.min(100, Math.max(20, seedFreq / 10));
       return [
-        Math.min(100, Math.max(10, base + Math.random() * 40 - 20)),
-        Math.min(100, Math.max(10, base + Math.random() * 40 - 20)),
-        Math.min(100, Math.max(10, base + Math.random() * 40 - 20)),
-        Math.min(100, Math.max(10, base + Math.random() * 40 - 20)),
-        Math.min(100, Math.max(10, base + Math.random() * 40 - 20))
+        base + Math.random() * 30 - 15, base + Math.random() * 30 - 15,
+        base + Math.random() * 30 - 15, base + Math.random() * 30 - 15,
+        base + Math.random() * 30 - 15
       ];
     };
 
     let nameFreqSum = 0;
-    let validCharCount = 0;
+    let valid = 0;
     name.split('').forEach(c => {
-      if (charMap[c]) {
-        nameFreqSum += charMap[c];
-        validCharCount++;
-      }
+      if (charMap[c]) { nameFreqSum += charMap[c]; valid++; }
+      else { nameFreqSum += 440; valid++; } // simplistic fallback for unknown chars in strict reproduction
     });
-    const nameAvg = (validCharCount > 0) ? nameFreqSum / validCharCount : 440;
+    const nameAvg = valid > 0 ? nameFreqSum / valid : 440;
 
+    // index.html chart code
     const data = {
       labels: ['木 (成長)', '火 (情熱)', '土 (安定)', '金 (収穫)', '水 (知性)'],
       datasets: [{
@@ -338,40 +369,23 @@ export default function Home() {
         data: generateRandomData(nameAvg),
         backgroundColor: 'rgba(191, 165, 255, 0.2)',
         borderColor: 'rgba(191, 165, 255, 1)',
-        borderWidth: 2,
-        pointBackgroundColor: '#fff',
+        borderWidth: 2
       }, {
         label: '今の声の状態',
-        data: generateRandomData(pitch > 0 ? pitch : 440),
-        backgroundColor: 'rgba(56, 239, 125, 0.2)',
-        borderColor: 'rgba(56, 239, 125, 1)',
-        borderWidth: 2,
-        pointBackgroundColor: '#fff',
+        data: generateRandomData(pitch),
+        backgroundColor: 'rgba(233, 30, 99, 0.2)',
+        borderColor: 'rgba(233, 30, 99, 1)',
+        borderWidth: 2
       }]
     };
     setRadarData(data);
   };
 
-  // ---------------------------------------------------------------------------
-  // Download Logic
-  // ---------------------------------------------------------------------------
   const handleDownload = () => {
     if (!generatedBuffer) return;
     const wav = bufferToWave(generatedBuffer, generatedBuffer.length);
-    const blob = new Blob([wav], { type: "audio/wav" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "astro_resonance_omamori.wav";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const resetAll = () => {
-    setCurrentStep(1);
-    setSanmeigakuResult(null);
-    setVoicePitch(0);
-    setGeneratedBuffer(null);
+    const url = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+    const a = document.createElement("a"); a.href = url; a.download = "astro_resonance.wav"; a.click();
   };
 
 
@@ -379,264 +393,146 @@ export default function Home() {
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-4 relative overflow-hidden bg-zen-black text-white">
-      {/* Background */}
-      <div className="absolute inset-0 bg-mystic-glow pointer-events-none" />
-      <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-cyber-primary to-transparent opacity-50" />
+    <main>
+      {/* We keep Main tag but content structure mimics index.html body */}
 
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="z-10 text-center mb-6"
-      >
-        <h1 className="text-3xl md:text-5xl font-bold text-cyber-primary glow-text mb-2 tracking-widest">
-          Astro-Resonance v4
-        </h1>
-        <p className="text-zen-dim text-xs tracking-[0.3em] uppercase">
-          Tuning your Fate via Physics
+      {/* Header content directly here as per index.html */}
+      <h1>Astro-Resonance</h1>
+      <div className="subtitle">運命の周波数チューニング</div>
+
+      <div className="concept-box">
+        <p>
+          本システムは、算命学を用いて<span className="concept-strong">『運命の時間』</span>を計算し、
+          カタカムナの物理学で<span className="concept-strong">『空間の周波数』</span>を調整します。<br /><br />
+          中華の統計学（時間）と、和の音響学（空間）を、
+          最新の数学（フーリエ解析）によって融合させた、世界初の運命調整アルゴリズムです。<br /><br />
+          あなたの「声」に含まれる周波数成分を解析し、不足しているエネルギーを音で補うことで、
+          運命のバランスを最適化します。
         </p>
-      </motion.div>
+      </div>
 
-      {/* Main Panel */}
-      <div className="glass-panel w-full max-w-2xl rounded-2xl p-6 md:p-8 z-10 relative min-h-[500px] flex flex-col">
-
-        {/* Progress Bar */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-white/10 rounded-t-2xl overflow-hidden">
-          <motion.div
-            className="h-full bg-cyber-primary shadow-[0_0_10px_#bfa5ff]"
-            animate={{ width: `${(currentStep / 4) * 100}%` }}
-          />
-        </div>
-
-        {/* Step 1: Input */}
-        <AnimatePresence mode="wait">
-          {currentStep === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 20 }}
-              className="flex-1 flex flex-col justify-center"
-            >
-              <div className="mb-6 bg-white/5 p-4 rounded-lg border-l-4 border-cyber-primary">
-                <h3 className="text-cyber-primary font-bold mb-2 flex items-center gap-2">
-                  <Activity size={18} /> CONCEPT
-                </h3>
-                <p className="text-sm text-zen-dim leading-relaxed">
-                  本システムは、算命学（時間）と音響工学（空間）を統合した運命調整装置です。
-                  あなたの「名前」と「生年月日」から固有の周波数を算出し、エネルギーの欠損を補完します。
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs text-zen-dim mb-1 tracking-wider">NAME (Hiragana)</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="たなか たろう"
-                    className="w-full bg-zen-dark border border-white/10 rounded-lg p-3 text-white focus:border-cyber-primary focus:outline-none transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-zen-dim mb-1 tracking-wider">BIRTH DATE</label>
-                  <input
-                    type="date"
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    className="w-full bg-zen-dark border border-white/10 rounded-lg p-3 text-white focus:border-cyber-primary focus:outline-none transition-colors"
-                  />
-                </div>
-                <button
-                  onClick={handleAnalyzeDate}
-                  className="w-full bg-gradient-to-r from-violet-600 to-cyber-primary text-zen-black font-bold py-4 rounded-lg hover:opacity-90 transition-transform active:scale-95 flex items-center justify-center gap-2"
-                >
-                  <Sparkles size={20} /> ANALYZE FATE
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 2: Sound Check */}
-          {currentStep === 2 && (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col"
-            >
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Brain className="text-cyber-primary" /> ANALYSIS REPORT
-              </h2>
-
-              {sanmeigakuResult && (
-                <div className="bg-zen-dark/50 p-4 rounded-lg border border-white/10 mb-6 grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-zen-dim">SOUL ELEMENT</p>
-                    <p className="text-2xl font-bold text-white">{sanmeigakuResult.myElement}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-zen-dim">GUARDIAN TYPE</p>
-                    <p className="text-2xl font-bold text-cyber-success">{sanmeigakuResult.guardianElement}</p>
-                  </div>
-                </div>
-              )}
-
-              <div className="bg-black/40 rounded-lg p-4 mb-4 border border-white/5 flex-1 flex flex-col items-center justify-center relative overflow-hidden">
-                <canvas
-                  ref={visualizerCanvasRef}
-                  width={500}
-                  height={200}
-                  className="w-full h-full absolute inset-0 z-0 opacity-70"
+      <div className="container">
+        {/* Step 1 */}
+        <StaggeredText className="container">
+          <div id="step1">
+            <StaggerItem>
+              <div className="form-group">
+                <label>お名前（ひらがな）</label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="あかさ"
                 />
-                <div className="z-10 text-center">
-                  <p className="text-xs text-zen-dim mb-2 uppercase tracking-widest">Guardian Sound Frequency</p>
-                  <button
-                    onClick={handlePlaySound}
-                    disabled={isPlaying}
-                    className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${isPlaying ? "bg-zen-panel border border-cyber-primary animate-pulse" : "bg-cyber-primary hover:scale-110 text-zen-black"}`}
-                  >
-                    {isPlaying ? <Activity size={32} /> : <Play size={32} className="ml-1" />}
-                  </button>
+              </div>
+            </StaggerItem>
+            <StaggerItem>
+              <div className="form-group">
+                <label>生年月日</label>
+                <input
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                />
+              </div>
+            </StaggerItem>
+            <StaggerItem>
+              <button className="btn-primary" onClick={handleAnalyzeDate}>1. 運命を解析する</button>
+            </StaggerItem>
+          </div>
+        </StaggeredText>
+
+        {/* Step 2 */}
+        {isStep2Visible && (
+          <div id="step2" className="step-area" style={{ display: 'block', animation: 'fadeIn 0.8s ease' }}>
+            {sanmeigakuResult && (
+              <div className="report-box">
+                <div style={{ fontSize: '0.8rem', color: '#aaa' }}>算命学解析結果</div>
+                <div>
+                  魂の属性: <span className="highlight">{sanmeigakuResult.myElement}</span> /
+                  守護タイプ: <span className="highlight">{sanmeigakuResult.guardianElement}</span>
                 </div>
               </div>
+            )}
+            <p style={{ fontSize: '0.9rem', color: '#ccc', textAlign: 'center' }}>
+              あなたのエネルギー不足を補う「守護神サウンド」を生成しました。<br />
+              まずは音を聴いて、波動を確認してください。
+            </p>
+            <button
+              className="btn-success"
+              onClick={handlePlaySound}
+              disabled={isPlaying}
+            >
+              {isPlaying ? "♪ 再生中..." : "2. 守護音を再生して確認"}
+            </button>
+            <canvas ref={visualizerCanvasRef} id="visualizer"></canvas>
+          </div>
+        )}
 
-              <p className="text-center text-xs text-zen-dim mb-4">
-                Confirm the resonance of the guardian sound before proceeding.
-              </p>
+        {/* Step 3 */}
+        {isStep3Visible && (
+          <div id="step3" className="step-area" style={{ display: 'block', animation: 'fadeIn 0.8s ease' }}>
+            <div className="report-box" style={{ borderLeftColor: '#e91e63' }}>
+              <div style={{ fontSize: '0.8rem', color: '#aaa' }}>チューニングの最終工程</div>
+              <div style={{ fontWeight: 'bold', marginTop: '5px' }}>
+                守護神サウンドに合わせて、あなたの「声」を入力してください。<br />
+                音のズレを解析し、統合します。
+              </div>
+            </div>
 
-              <button
-                onClick={moveToStep3}
-                disabled={isPlaying && !generatedBuffer} // enable if generated
-                className="w-full bg-zen-panel border border-white/20 hover:bg-white/10 text-white py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                PROCEED TO MIC CHECK
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn-mic" onClick={handleStartMic} disabled={isRecording}>
+                {isRecording ? "録音中..." : "3. 声を入力 (録音開始)"}
               </button>
-            </motion.div>
-          )}
+              <button className="btn-stop" onClick={handleStopMic} disabled={!isRecording}>停止＆解析</button>
+            </div>
+          </div>
+        )}
 
-          {/* Step 3: Mic Input */}
-          {currentStep === 3 && (
-            <motion.div
-              key="step3"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="flex-1 flex flex-col"
-            >
-              <div className="text-center mb-6">
-                <h2 className="text-xl font-bold mb-2">VOICE SYNCHRONIZATION</h2>
-                <p className="text-sm text-zen-dim">
-                  Speak your wish or name into the microphone to synchronize with the guardian sound.
-                </p>
+        {/* Step 4 */}
+        {isStep4Visible && (
+          <div id="step4" className="step-area" style={{ display: 'block', animation: 'fadeIn 0.8s ease' }}>
+            <div className="voice-analysis-box">
+              <div className="gratitude">✨ 声を届けてくれてありがとう ✨</div>
+              <div style={{ fontSize: '0.9rem', color: '#ccc' }}>あなたの声のフーリエ解析結果</div>
+              <div className="voice-data">
+                {voicePitch > 0 ? `${voicePitch} Hz` : "Analyzing..."}
               </div>
+              <div style={{ fontSize: '0.9rem', color: '#fff' }} dangerouslySetInnerHTML={{ __html: voiceComment }}></div>
+            </div>
 
-              <div className="bg-black/40 rounded-lg p-4 mb-6 border-2 border-cyber-mic/30 flex-1 flex flex-col items-center justify-center relative overflow-hidden min-h-[200px]">
-                <canvas
-                  ref={visualizerCanvasRef}
-                  width={500}
-                  height={200}
-                  className="w-full h-full absolute inset-0 z-0 opacity-70"
+            <div style={{ textAlign: 'center', color: '#38ef7d', fontWeight: 'bold', margin: '20px 0' }}>
+              ▼ あなたの声と、守護神の音が共鳴しました ▼
+            </div>
+
+            <div style={{ position: 'relative', height: '300px', width: '100%', marginBottom: '20px' }}>
+              {radarData && (
+                <Radar
+                  data={radarData}
+                  options={{
+                    scales: {
+                      r: {
+                        angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
+                        grid: { color: 'rgba(255, 255, 255, 0.2)' },
+                        pointLabels: { color: '#ccc', font: { size: 12 } },
+                        suggestedMin: 0, suggestedMax: 100
+                      }
+                    },
+                    plugins: { legend: { labels: { color: '#fff' } } },
+                    maintainAspectRatio: false
+                  }}
                 />
-                <div className="z-10 text-center">
-                  {!isRecording ? (
-                    <button
-                      onClick={handleStartMic}
-                      className="w-20 h-20 bg-cyber-mic rounded-full flex items-center justify-center shadow-[0_0_20px_#e91e63] hover:scale-105 transition-transform"
-                    >
-                      <Mic size={40} className="text-white" />
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleStopMic}
-                      className="w-20 h-20 bg-white text-cyber-mic rounded-full flex items-center justify-center shadow-[0_0_20px_white] hover:scale-95 transition-transform animate-pulse"
-                    >
-                      <Square size={32} fill="currentColor" />
-                    </button>
-                  )}
+              )}
+            </div>
 
-                  <p className="mt-4 text-cyber-mic font-bold tracking-widest">
-                    {isRecording ? "RECORDING..." : "TAP TO RECORD"}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 4: Result */}
-          {currentStep === 4 && (
-            <motion.div
-              key="step4"
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex-1 flex flex-col"
-            >
-              <div className="text-center mb-4">
-                <h2 className="text-2xl font-bold text-cyber-success mb-1">RESONANCE COMPLETE</h2>
-                <p className="text-xs text-zen-dim tracking-widest">HARMONY ESTABLISHED</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                {/* Radar Chart */}
-                <div className="bg-white/5 rounded-lg p-2 min-h-[200px] flex items-center justify-center relative">
-                  {radarData && (
-                    <Radar
-                      data={radarData}
-                      options={{
-                        scales: {
-                          r: {
-                            angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
-                            grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                            pointLabels: { color: '#888', font: { size: 10 } },
-                            ticks: { display: false }
-                          }
-                        },
-                        plugins: { legend: { display: false } }, // Custom legend used
-                        maintainAspectRatio: false,
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Stats & Comment */}
-                <div className="flex flex-col justify-center space-y-4">
-                  <div className="bg-cyber-primary/10 border border-cyber-primary/30 p-3 rounded-lg">
-                    <p className="text-[10px] text-cyber-primary mb-1">VOICE FREQUENCY</p>
-                    <p className="text-2xl font-bold">{voicePitch} Hz</p>
-                  </div>
-                  <div className="text-xs text-gray-300 leading-relaxed bg-black/20 p-3 rounded-lg border border-white/5">
-                    {voiceComment}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-auto">
-                <button
-                  onClick={handleDownload}
-                  className="flex-1 bg-cyber-success text-zen-black font-bold py-3 rounded-lg hover:opacity-90 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(56,239,125,0.4)]"
-                >
-                  <Download size={18} /> SAVE OMAMORI (.WAV)
-                </button>
-                <button
-                  onClick={resetAll}
-                  className="w-12 bg-zen-dark border border-white/10 rounded-lg flex items-center justify-center hover:bg-white/10"
-                >
-                  <RotateCcw size={18} className="text-zen-dim" />
-                </button>
-              </div>
-            </motion.div>
-          )}
-
-        </AnimatePresence>
+            <button className="btn-download" onClick={handleDownload}>
+              ↓ 完成した「共鳴お守り」を保存 (.wav)
+            </button>
+          </div>
+        )}
 
       </div>
 
-      <footer className="absolute bottom-4 text-zen-dim text-[10px] opacity-30 mt-8">
-        Astro-Resonance System v4.2.0 Next.js Port
-      </footer>
     </main>
   );
 }

@@ -3,25 +3,216 @@
 @tailwind utilities;
 
 :root {
-  background-color: #050508;
+  background-color: #0d0d15;
   color: #e0e0e0;
 }
 
 body {
-  background-size: 40px 40px;
-  background-image: 
-    linear-gradient(to right, rgba(30, 30, 40, 0.5) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(30, 30, 40, 0.5) 1px, transparent 1px);
+  /* User requested radial-gradient to match "Universe" feel, combined with index.html's base color */
+  background: radial-gradient(circle at center, #1a1a24 0%, #0d0d15 100%);
+  /* Fallback or base color from index.html */
+  background-color: #0d0d15;
+  color: #e0e0e0;
+  font-family: "Helvetica Neue", Arial, sans-serif;
   min-height: 100vh;
+  margin: 0;
+  padding: 20px;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.glow-text {
-  text-shadow: 0 0 10px rgba(191, 165, 255, 0.6);
+h1 {
+  color: #bfa5ff;
+  text-shadow: 0 0 10px rgba(191, 165, 255, 0.5);
+  margin-bottom: 5px;
+  letter-spacing: 2px;
+  text-align: center;
+  font-size: 2em;
+  /* Browser default for h1, explicit for strictness */
+  font-weight: bold;
 }
 
-.glass-panel {
-  background: rgba(18, 18, 26, 0.7);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+.subtitle {
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+@layer components {
+
+  /* Utilities for glow defined in previous attempts */
+  .glow-text {
+    text-shadow: 0 0 10px rgba(191, 165, 255, 0.6);
+  }
+
+  /* Ported from index.html .concept-box */
+  .concept-box {
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.2) 100%);
+    border: 1px solid #444;
+    border-left: 5px solid #bfa5ff;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 600px;
+    margin-bottom: 30px;
+    font-size: 0.95rem;
+    color: #ddd;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  }
+
+  .concept-strong {
+    color: #fff;
+    font-weight: bold;
+  }
+
+  /* Ported from index.html .container */
+  .container {
+    background: #1a1a24;
+    padding: 30px;
+    border-radius: 15px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+    width: 100%;
+    max-width: 500px;
+    border: 1px solid #333;
+  }
+
+  .form-group {
+    margin-bottom: 20px;
+  }
+
+  /* Ported Label/Input Styles */
+  /* Using descendant selector or class if needed. 
+     Since we can't style raw 'label' easily within @layer without conflict, 
+     we rely on Tailwind's base or apply these via classes in JSX.
+     OR we can put them globally. 
+     Let's put them globally outside layer or specific classes if we want strict match.
+     However, standard practice is applying classes. 
+     I will add utility classes that match these for usage. 
+  */
+  .styled-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: #aaa;
+  }
+
+  .styled-input {
+    width: 100%;
+    padding: 12px;
+    background: #252530;
+    border: 1px solid #444;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+
+  /* Button Styles from index.html */
+  /* button tag style from index.html is broad. I will apply it to btn-base */
+  .btn-base {
+    width: 100%;
+    padding: 15px;
+    border-radius: 8px;
+    color: white;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 10px;
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    /* Presumed common shadow or from specific btns */
+  }
+
+  .btn-base:hover {
+    opacity: 0.9;
+    transform: translateY(-2px);
+  }
+
+  .btn-base:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-primary {
+    @apply btn-base;
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+  }
+
+  .btn-success {
+    @apply btn-base;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+  }
+
+  .btn-mic {
+    @apply btn-base;
+    background: #e91e63;
+    box-shadow: 0 4px 15px rgba(233, 30, 99, 0.4);
+  }
+
+  .btn-stop {
+    @apply btn-base;
+    background: #555;
+  }
+
+  .btn-download {
+    @apply btn-base;
+    background: #333;
+    border: 1px solid #555;
+    font-size: 0.9rem;
+  }
+
+  /* Ported .report-box */
+  .report-box {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border-left: 4px solid #bfa5ff;
+  }
+
+  .highlight {
+    color: #ffeb3b;
+    font-weight: bold;
+  }
+
+  /* Ported .voice-analysis-box */
+  .voice-analysis-box {
+    background: rgba(233, 30, 99, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(233, 30, 99, 0.3);
+    text-align: center;
+  }
+
+  .voice-data {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #ff80ab;
+    margin: 10px 0;
+  }
+
+  .gratitude {
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 10px;
+  }
+
+  /* Canvas style from index.html (generic canvas tag style) */
+  .styled-canvas {
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+
+  #visualizer,
+  .visualizer-fallback {
+    background: #000;
+    height: 100px;
+    width: 100%;
+    border: 1px solid #333;
+  }
 }
