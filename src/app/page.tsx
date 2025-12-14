@@ -59,7 +59,7 @@ export default function Home() {
 
   // Refs
   const visualizerCanvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>();
+  const requestRef = useRef<number>(0);
 
   // UseEffect for cleanup
   useEffect(() => {
