@@ -1,5 +1,7 @@
 "use client";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react"; // Suspenseを追加
+import { useSearchParams } from 'next/navigation'; // ★追加: URLパラメータを受け取るためのフック
+
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -31,20 +33,24 @@ ChartJS.register(
 // -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
-export default function Home() {
-  // --- UI Steps State ---
-  // In index.html, steps are revealed (stacked). 
-  // Step 1 is always visible.
-  // Step 2 is revealed after analysis.
-  // Step 3 is revealed after sound check (or timeout).
-  // Step 4 is revealed after mic stop (hiding step 3? No, explicitly: step3.style.display="none", step4="block")
-  // So: 1 & 2 can coexist. 2 & 3 can coexist. 
-  // But 3 and 4 are mutually exclusive usually?
-  // Let's track "max reached step" and specific visibility flags.
 
+// ★メインコンポーネントをSuspenseでラップするための親コンポーネント
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <Home />
+    </Suspense>
+  );
+}
+
+// ★中身のロジック（Home）
+function Home() {
+  const searchParams = useSearchParams(); // ★URLのパラメータを取得する
+
+  // --- UI Steps State ---
   const [isStep2Visible, setIsStep2Visible] = useState(false);
   const [isStep3Visible, setIsStep3Visible] = useState(false);
-  const [isStep4Visible, setIsStep4Visible] = useState(false); // When 4 is visible, 3 is usually hidden in original logic
+  const [isStep4Visible, setIsStep4Visible] = useState(false);
 
   // --- Data State ---
   const [name, setName] = useState("たなかたろう");
@@ -69,7 +75,7 @@ export default function Home() {
 
   // Refs
   const visualizerCanvasRef = useRef<HTMLCanvasElement>(null);
-  const micVisualizerCanvasRef = useRef<HTMLCanvasElement>(null); // Separate ref for step 3 if needed, or reuse logic
+  const micVisualizerCanvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
 
   // UseEffect for cleanup
@@ -80,6 +86,33 @@ export default function Home() {
       if (audioContext && audioContext.state !== 'closed') audioContext.close();
     };
   }, []);
+
+  // ★追加機能: URLパラメータがあったら自動で解析する
+  useEffect(() => {
+    // URLからデータを取得 (?dob=19950808&name=...)
+    const dobParam = searchParams.get('dob');
+    const nameParam = searchParams.get('name');
+
+    if (dobParam && dobParam.length === 8) {
+      // 1. 日付のフォーマット変換 (19950808 -> 1995-08-08)
+      const y = dobParam.substring(0, 4);
+      const m = dobParam.substring(4, 6);
+      const d = dobParam.substring(6, 8);
+      const formattedDate = `${y}-${m}-${d}`;
+
+      // 2. フォームに入力
+      setBirthDate(formattedDate);
+      if (nameParam) setName(nameParam);
+
+      // 3. 自動で解析を実行して Step 2 を開く
+      // (Reactのstate更新は非同期なので、変数を直接渡して計算します)
+      const result = calculateSanmeigaku(formattedDate);
+      setSanmeigakuResult(result);
+      setIsStep2Visible(true);
+      
+      console.log("連携データ受信完了: 自動解析を実行しました");
+    }
+  }, [searchParams]);
 
   // ---------------------------------------------------------------------------
   // Step 1: Run Analysis (Sanmeigaku)
