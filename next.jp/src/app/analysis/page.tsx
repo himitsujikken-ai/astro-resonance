@@ -1,8 +1,86 @@
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 import BreathingButton from '@/components/BreathingButton';
 import StaggeredText, { StaggerItem } from '@/components/StaggeredText';
 
 export default function AnalysisPage() {
+    const [userName, setUserName] = useState('');
+    const [userBirthdate, setUserBirthdate] = useState('');
+    const [frequency, setFrequency] = useState<number | null>(null);
+
+    useEffect(() => {
+        // Load data from session
+        const name = sessionStorage.getItem('resonance_name');
+        const birthdate = sessionStorage.getItem('resonance_birthdate');
+        if (name) setUserName(name);
+        if (birthdate) setUserBirthdate(birthdate);
+    }, []);
+
+    const playResonanceSound = async () => {
+        if (!userName || !userBirthdate) {
+            alert("基本情報（名前・生年月日）が見つかりません。Startページからやり直してください。");
+            return;
+        }
+
+        try {
+            const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+            const audioCtx = new AudioContextClass();
+
+            // 明示的に再開（ユーザー操作内であっても必須な場合があるため）
+            await audioCtx.resume();
+
+            if (audioCtx.state !== 'running') {
+                alert(`Audio Error: Context is ${audioCtx.state}. Please try clicking again.`);
+                return;
+            }
+
+            // 1. Calculate Seed
+            let seed = 0;
+            for (let i = 0; i < userName.length; i++) {
+                seed += userName.charCodeAt(i);
+            }
+            const dateParts = userBirthdate.split('-');
+            if (dateParts.length === 3) {
+                seed += parseInt(dateParts[0]) + parseInt(dateParts[1]) + parseInt(dateParts[2]);
+            }
+
+            // 2. Base Freq (400 - 800Hz)
+            const baseFreq = 400 + (seed % 400);
+            setFrequency(Math.round(baseFreq));
+
+            // 3. Oscillator & Gain
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.value = baseFreq;
+
+            // Timing (Add generic buffer to avoid "past time" errors)
+            const startTime = audioCtx.currentTime + 0.1;
+            const duration = 5.0;
+
+            // Simple Envelope
+            gainNode.gain.setValueAtTime(0, startTime);
+            gainNode.gain.linearRampToValueAtTime(0.8, startTime + 1.0); // Attack (1s)
+            gainNode.gain.linearRampToValueAtTime(0.01, startTime + duration); // Decay
+
+            // Connect
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration + 0.5);
+
+            // Cleanup
+            oscillator.onended = () => {
+                audioCtx.close();
+            };
+
+        } catch (err: any) {
+            console.error("Audio Playback Error:", err);
+            alert("音声再生中にエラーが発生しました: " + (err.message || String(err)));
+        }
+    };
     return (
         <div className="min-h-screen flex flex-col">
             {/* Header */}
@@ -51,9 +129,34 @@ export default function AnalysisPage() {
                                 入力された好調・停滞の波形をフーリエ分解し、
                                 繰り返し現れる<strong className="font-semibold text-slate-50">周期（周波数成分）</strong>を抽出しました。
                                 ここでは「強い周期」と「合成された人生の波形」を確認できます。
-                                <br /><br />
-                                ※ 現段階は UI モックのため数値・グラフはダミーです。後で JS で本計算に置き換え可能です。
+                                ここでは「強い周期」と「合成された人生の波形」を確認できます。
                             </p>
+                        </StaggerItem>
+
+                        {/* Sound Ritual */}
+                        <StaggerItem>
+                            <div className="rounded-3xl border border-yellow-500/30 bg-yellow-500/5 p-6 mb-10 text-center">
+                                <h3 className="text-lg font-semibold text-yellow-200 mb-2">
+                                    ✦ {userName || 'あなた'}の固有周波数（Base Frequency）
+                                </h3>
+                                <p className="text-sm text-slate-300 mb-6">
+                                    お名前と生年月日（{userBirthdate}）から導き出された<br />
+                                    あなただけの「魂の共鳴音」を聴くことができます。
+                                </p>
+
+                                {frequency && (
+                                    <div className="mb-4 text-3xl font-light text-white tracking-widest animate-pulse">
+                                        {frequency} Hz
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={playResonanceSound}
+                                    className="inline-flex items-center justify-center px-8 py-4 rounded-full bg-slate-100 text-slate-900 text-sm font-bold tracking-widest hover:bg-white hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] transition-all duration-300"
+                                >
+                                    ▶ 再生する (Sound On)
+                                </button>
+                            </div>
                         </StaggerItem>
 
                         {/* Summary */}

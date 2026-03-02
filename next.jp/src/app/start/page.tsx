@@ -11,6 +11,7 @@ import RitualOverlay from '@/components/RitualOverlay';
 export default function StartPage() {
     const router = useRouter();
     const [formData, setFormData] = useState({
+        name: '',
         birthdate: '',
         birthtime: '',
         birthplace: ''
@@ -23,6 +24,9 @@ export default function StartPage() {
 
         // Validation
         const newErrors: Record<string, string> = {};
+        if (!formData.name) {
+            newErrors.name = "Required";
+        }
         if (!formData.birthdate) {
             newErrors.birthdate = "Required";
         }
@@ -32,7 +36,10 @@ export default function StartPage() {
             return; // Stop
         }
 
-        // Success -> Ritual Transition
+        // Success -> Save to Session -> Ritual Transition
+        sessionStorage.setItem('resonance_name', formData.name);
+        sessionStorage.setItem('resonance_birthdate', formData.birthdate);
+
         setIsRitualActive(true);
 
         // Wait for ritual animation (1.5s)
@@ -108,6 +115,20 @@ export default function StartPage() {
                         <StaggerItem>
                             <div className="rounded-3xl border border-slate-800 bg-slate-950/40 p-6 md:p-8 shadow-[0_0_40px_rgba(15,23,42,0.9)]">
                                 <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+
+                                    {/* Name */}
+                                    <CosmicInput
+                                        label="お名前（ひらがな）"
+                                        id="name"
+                                        name="name"
+                                        type="text"
+                                        required
+                                        placeholder="たなかたろう"
+                                        value={formData.name}
+                                        onChange={handleChange}
+                                        error={errors.name}
+                                        note="音の響き（周波数）を解析するために使用します。"
+                                    />
 
                                     {/* Birthdate */}
                                     <CosmicInput

@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+next.jp/node_modules
+next.jp/.next
 /.pnp
 .pnp.*
 .yarn/*
