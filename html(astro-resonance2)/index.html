@@ -73,7 +73,7 @@
                 </div>
                 <div class="hidden md:flex items-center gap-4 text-xs font-mono text-slate-500">
                     <span>SYS: ONLINE</span>
-                    <span>VER: 3.2.0</span>
+                    <span>VER: 4.0.0</span>
                 </div>
             </div>
         </header>
@@ -117,6 +117,53 @@
                 </div>
             </div>
 
+            <div class="glass-panel rounded-2xl p-6 mb-16 anim-entry delay-200">
+                <div class="text-xs font-mono text-teal-400 mb-4 tracking-widest">DATA FLOW — PROCESSING PIPELINE</div>
+                <div class="font-mono text-[11px] md:text-xs leading-relaxed text-slate-400 overflow-x-auto">
+                    <div class="min-w-[480px]">
+                        <div class="flex items-start gap-2 mb-2">
+                            <span class="text-blue-400 font-bold whitespace-nowrap">[INPUT]</span>
+                            <span class="text-slate-300">名前(ひらがな) + 生年月日</span>
+                        </div>
+                        <div class="border-l-2 border-slate-700 ml-4 pl-4 space-y-2 py-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-yellow-400">├→</span>
+                                <span class="text-yellow-300">算命学(十干)</span>
+                                <span class="text-slate-600">→</span>
+                                <span>五行属性</span>
+                                <span class="text-slate-600">→</span>
+                                <span class="text-yellow-400 font-bold">守護周波数 (Solfeggio Hz)</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-emerald-400">├→</span>
+                                <span class="text-emerald-300">名前 charMap</span>
+                                <span class="text-slate-600">→</span>
+                                <span>各文字の固有周波数</span>
+                                <span class="text-slate-600">→</span>
+                                <span class="text-emerald-400 font-bold">倍音レイヤー</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-fuchsia-400">└→</span>
+                                <span class="text-fuchsia-300">マイク録音(FFT)</span>
+                                <span class="text-slate-600">→</span>
+                                <span>VOICE層</span>
+                                <span class="text-slate-600">→</span>
+                                <span class="text-fuchsia-400 font-bold">3層レーダー比較</span>
+                            </div>
+                        </div>
+                        <div class="border-l-2 border-slate-700 ml-4 pl-4 pt-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-teal-400">↓</span>
+                                <span class="text-teal-300 font-bold">OUTPUT:</span>
+                                <span>守護周波数 + 倍音合成 + 名前周波数 + バイノーラル + リバーブ</span>
+                                <span class="text-slate-600">→</span>
+                                <span class="text-teal-400 font-bold">WAV生成</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="step1" class="glass-panel rounded-3xl p-8 mb-10 anim-entry delay-200 transition-all duration-500">
                 <div class="flex items-center gap-4 mb-8">
                     <div class="h-8 w-8 rounded bg-slate-800 text-slate-400 flex items-center justify-center font-mono text-sm border border-slate-700">01</div>
@@ -156,7 +203,12 @@
                 <div class="p-6 bg-slate-950/30 rounded-xl border border-slate-800/50 mb-8">
                     <h4 class="text-sm font-bold text-yellow-400 mb-2">▼ 生成ロジック解説</h4>
                     <p class="text-xs text-slate-400 leading-relaxed text-justify">
-                        上記の結果に基づき、あなたのエネルギーフィールドの欠落部分を補完するサイン波（Sine Wave）と、お名前の音韻数理に基づく倍音（Harmonics）を合成しました。この音は、単なるリラクゼーション音ではなく、あなたの脳波を「宿命的な最適値」へと誘導するキャリア波（搬送波）として機能します。
+                        算命学の<span class="text-yellow-300">十干（1900年基準の日数差 → 60干支 → 10干 → 五行）</span>から守護周波数を特定し、
+                        その<span class="text-teal-300">2倍・3倍・5倍の倍音</span>を重畳。さらに、お名前の各文字を
+                        <span class="text-emerald-300">charMap（ひらがな→周波数テーブル）</span>で変換した固有周波数を時間差で加算し、
+                        <span class="text-blue-300">バイノーラルビート（±1.5Hz）</span>による脈動感と、
+                        <span class="text-purple-300">マルチタップ・ディレイリバーブ</span>で空間的な広がりを付加しています。
+                        この多層的な音は、単なるリラクゼーション音ではなく、あなたの脳波を「宿命的な最適値」へと誘導するキャリア波として機能します。
                     </p>
                 </div>
 
@@ -258,32 +310,91 @@
     </div>
 
     <script>
+        // ひらがな → 周波数テーブル (Next.js版より移植)
+        const charMap = {
+            'あ': 261, 'い': 293, 'う': 329, 'え': 349, 'お': 392,
+            'か': 440, 'き': 493, 'く': 523, 'け': 587, 'こ': 659,
+            'さ': 698, 'し': 783, 'す': 880, 'せ': 987, 'そ': 1046,
+            'た': 523, 'ち': 587, 'つ': 659, 'て': 698, 'と': 783,
+            'な': 880, 'に': 987, 'ぬ': 1046, 'ね': 1174, 'の': 1318,
+            'は': 349, 'ひ': 392, 'ふ': 440, 'へ': 493, 'ほ': 523,
+            'ま': 587, 'み': 659, 'む': 698, 'め': 783, 'も': 880,
+            'や': 261, 'ゆ': 329, 'よ': 392,
+            'ら': 783, 'り': 880, 'る': 987, 'れ': 1046, 'ろ': 1174,
+            'わ': 523, 'を': 587,
+            'ん': 1975,
+            'が': 440, 'ぎ': 493, 'ぐ': 523, 'げ': 587, 'ご': 659,
+            'ざ': 698, 'じ': 783, 'ず': 880, 'ぜ': 987, 'ぞ': 1046,
+            'だ': 523, 'ぢ': 587, 'づ': 659, 'で': 698, 'ど': 783,
+            'ば': 349, 'び': 392, 'ぶ': 440, 'べ': 493, 'ぼ': 523,
+            'ぱ': 349, 'ぴ': 392, 'ぷ': 440, 'ぺ': 493, 'ぽ': 523,
+            'ゃ': 261, 'ゅ': 329, 'ょ': 392, 'っ': 1975
+        };
+
+        // 五行 → 周波数 (ソルフェジオ系)
+        const elementFreqs = { "木": 396, "火": 528, "土": 639, "金": 741, "水": 852 };
+
+        // 五行の詳細情報
+        const elementDetails = {
+            "木": { n:"木性 (WOOD)", desc:"成長・神経系・直感", detail:"「木」は春のエネルギーを象徴し、上へ外へと伸びる性質を持ちます。人体では肝臓・神経系に対応。この周波数は、停滞した思考を打破し、新しい神経回路の形成を促す作用があるとされています。" },
+            "火": { n:"火性 (FIRE)", desc:"情熱・循環器・変容", detail:"「火」は夏のエネルギーで、拡散と上昇を司ります。人体では心臓・循環器に対応。528HzはDNA修復周波数とも呼ばれ、細胞レベルでの活性化と、感情的なブロックの解放（変容）を物理的にサポートします。" },
+            "土": { n:"土性 (EARTH)", desc:"安定・消化器・接続", detail:"「土」は季節の変わり目（土用）を司り、受容と統合の性質を持ちます。人体では胃・脾臓に対応。この周波数は、グラウンディング（地に足をつける）効果が高く、不安定な生体磁場を地球のシューマン共振へと同調させます。" },
+            "金": { n:"金性 (METAL)", desc:"改革・呼吸器・収穫", detail:"「金」は秋の結実を表し、不必要なものを切り捨てる改革の性質を持ちます。人体では肺・呼吸器に対応。741Hzは「表現の周波数」とされ、喉のチャクラに作用し、デトックス効果と自己表現の純度を高める物理特性があります。" },
+            "水": { n:"水性 (WATER)", desc:"知性・腎泌尿・柔軟", detail:"「水」は冬の凝縮エネルギーで、本質的な知恵と柔軟性を表します。人体では腎臓に対応。852Hzは松果体を活性化させると言われ、直感力を高めると同時に、体液（血液・リンパ）のミクロな振動を整える役割を果たします。" }
+        };
+
         const Logic = {
+            // 算命学・十干計算 (Next.js版より移植)
             calcElements: function(dateStr) {
-                const d = new Date(dateStr);
-                const types = [
-                    { n:"木性 (WOOD)", desc:"成長・神経系・直感", detail:"「木」は春のエネルギーを象徴し、上へ外へと伸びる性質を持ちます。人体では肝臓・神経系に対応。この周波数は、停滞した思考を打破し、新しい神経回路の形成を促す作用があるとされています。", freq: 396 }, 
-                    { n:"火性 (FIRE)", desc:"情熱・循環器・変容", detail:"「火」は夏のエネルギーで、拡散と上昇を司ります。人体では心臓・循環器に対応。528HzはDNA修復周波数とも呼ばれ、細胞レベルでの活性化と、感情的なブロックの解放（変容）を物理的にサポートします。", freq: 528 }, 
-                    { n:"土性 (EARTH)", desc:"安定・消化器・接続", detail:"「土」は季節の変わり目（土用）を司り、受容と統合の性質を持ちます。人体では胃・脾臓に対応。この周波数は、グラウンディング（地に足をつける）効果が高く、不安定な生体磁場を地球のシューマン共振へと同調させます。", freq: 639 }, 
-                    { n:"金性 (METAL)", desc:"改革・呼吸器・収穫", detail:"「金」は秋の結実を表し、不必要なものを切り捨てる改革の性質を持ちます。人体では肺・呼吸器に対応。741Hzは「表現の周波数」とされ、喉のチャクラに作用し、デトックス効果と自己表現の純度を高める物理特性があります。", freq: 741 }, 
-                    { n:"水性 (WATER)", desc:"知性・腎泌尿・柔軟", detail:"「水」は冬の凝縮エネルギーで、本質的な知恵と柔軟性を表します。人体では腎臓に対応。852Hzは松果体を活性化させると言われ、直感力を高めると同時に、体液（血液・リンパ）のミクロな振動を整える役割を果たします。", freq: 852 }  
-                ];
-                const val = d.getFullYear() + d.getMonth() + d.getDate();
-                const myIdx = val % 5;
-                const guardIdx = (myIdx + 2) % 5; 
-                return { my: types[myIdx], guard: types[guardIdx] };
+                const jukkan = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"];
+                const gogyoMap = { "甲":"木", "乙":"木", "丙":"火", "丁":"火", "戊":"土", "己":"土", "庚":"金", "辛":"金", "壬":"水", "癸":"水" };
+                const guardianMap = { "木":"水", "火":"木", "土":"火", "金":"土", "水":"金" };
+
+                const base = new Date(1900, 0, 1);
+                const target = new Date(dateStr);
+                const diffTime = target.getTime() - base.getTime();
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+                const myKan = jukkan[(diffDays + 10) % 60 % 10];
+                const myElement = gogyoMap[myKan];
+                const guardElement = guardianMap[myElement];
+
+                const myInfo = elementDetails[myElement];
+                const guardInfo = elementDetails[guardElement];
+
+                return {
+                    myKan: myKan,
+                    myElement: myElement,
+                    guardElement: guardElement,
+                    my: { ...myInfo, freq: elementFreqs[myElement] },
+                    guard: { ...guardInfo, freq: elementFreqs[guardElement] }
+                };
             },
+
+            // charMapベースの名前→五行スコア計算
             calcNameValue: function(name) {
-                let score = 0;
-                for(let i=0; i<name.length; i++) score += name.charCodeAt(i);
-                const seed = score;
-                return [
-                    (seed % 100) * 0.8 + 20,
-                    ((seed * 2) % 100) * 0.8 + 20,
-                    ((seed * 3) % 100) * 0.8 + 20,
-                    ((seed * 4) % 100) * 0.8 + 20,
-                    ((seed * 5) % 100) * 0.8 + 20
+                const gogyoFreqRanges = [
+                    { label: "木", min: 200, max: 400 },
+                    { label: "火", min: 400, max: 600 },
+                    { label: "土", min: 600, max: 800 },
+                    { label: "金", min: 800, max: 1000 },
+                    { label: "水", min: 1000, max: 2000 }
                 ];
+                const scores = [0, 0, 0, 0, 0];
+                let total = 0;
+                for (const ch of name) {
+                    const freq = charMap[ch];
+                    if (!freq) continue;
+                    total++;
+                    for (let g = 0; g < gogyoFreqRanges.length; g++) {
+                        if (freq >= gogyoFreqRanges[g].min && freq < gogyoFreqRanges[g].max) {
+                            scores[g] += 1;
+                            break;
+                        }
+                    }
+                }
+                if (total === 0) return [20, 20, 20, 20, 20];
+                return scores.map(s => Math.round((s / total) * 80 + 20));
             }
         };
 
@@ -339,14 +450,15 @@
 
                 const html = `
                     <div class="glass-panel p-4 rounded-xl border-l-2 border-l-slate-500">
-                        <div class="text-[10px] font-mono text-slate-500 mb-1">SOUL TYPE</div>
+                        <div class="text-[10px] font-mono text-slate-500 mb-1">SOUL TYPE — 十干: ${this.elements.myKan}</div>
                         <div class="text-sm font-bold text-slate-200 mb-2">${this.elements.my.n}</div>
                         <p class="text-[10px] text-slate-400 leading-relaxed border-t border-slate-700/50 pt-2">
-                            あなたの本質的なエネルギータイプです。${this.elements.my.desc}を司ります。
+                            あなたの本質的なエネルギータイプです。${this.elements.my.desc}を司ります。<br>
+                            <span class="text-slate-500">算出: 1900/1/1基準 → 60干支 → 十干「${this.elements.myKan}」→ 五行「${this.elements.myElement}」</span>
                         </p>
                     </div>
                     <div class="glass-panel p-4 rounded-xl border-l-2 border-l-yellow-500 bg-yellow-500/5">
-                        <div class="text-[10px] font-mono text-yellow-600 mb-1">GUARDIAN (TARGET)</div>
+                        <div class="text-[10px] font-mono text-yellow-600 mb-1">GUARDIAN (TARGET) — 守護五行: ${this.elements.guardElement}</div>
                         <div class="text-sm font-bold text-yellow-400 mb-2">${this.elements.guard.n}</div>
                         <p class="text-[10px] text-yellow-100/70 leading-relaxed border-t border-yellow-500/20 pt-2 text-justify">
                             ${this.elements.guard.detail}
@@ -356,7 +468,7 @@
                         <div class="text-[10px] font-mono text-teal-600 mb-1">BASE FREQUENCY</div>
                         <div class="text-sm font-bold text-teal-400 mb-2 font-mono">${this.elements.guard.freq} Hz</div>
                         <p class="text-[10px] text-slate-400 leading-relaxed border-t border-slate-700/50 pt-2">
-                            不足エネルギーを補うための物理的な搬送波周波数です。この音がアンカーとなります。
+                            不足エネルギーを補うための物理的な搬送波周波数です。お名前の各文字（charMap）の固有周波数を倍音として重畳します。
                         </p>
                     </div>
                 `;
@@ -454,28 +566,83 @@
                 }, 3000);
             },
 
-            // ★追加: 最終的な音声データを生成する関数
+            // 音声データ生成: 守護周波数 + 倍音 + バイノーラル + 名前charMap周波数 + リバーブ
             generateResonanceBuffer: function(customDuration) {
                 const sampleRate = 44100;
                 const duration = customDuration || parseInt(document.getElementById('inp-duration').value) || 10;
                 const samples = sampleRate * duration;
                 const buffer = new Float32Array(samples);
                 const freq = this.elements.guard.freq;
+                const name = document.getElementById('inp-name').value || "";
 
-                // フェード時間を長さに応じて調整（最大2秒）
                 const fadeTime = Math.min(2, duration * 0.2);
+                const chars = [...name];
+                const TWO_PI = 2 * Math.PI;
 
                 for (let i = 0; i < samples; i++) {
                     const t = i / sampleRate;
                     let envelope = 1;
-                    if (t < fadeTime) envelope = t / fadeTime; // フェードイン
-                    if (t > duration - fadeTime) envelope = (duration - t) / fadeTime; // フェードアウト
-                    
-                    // サイン波 + 微妙なモジュレーション（ゆらぎ）
-                    buffer[i] = Math.sin(2 * Math.PI * freq * t) * 0.5 * envelope;
+                    if (t < fadeTime) envelope = t / fadeTime;
+                    if (t > duration - fadeTime) envelope = (duration - t) / fadeTime;
+
+                    // 1) メイン守護周波数
+                    let sample = Math.sin(TWO_PI * freq * t) * 0.35 * envelope;
+
+                    // 2) 倍音合成 (2倍・3倍・5倍)
+                    sample += Math.sin(TWO_PI * freq * 2 * t) * 0.15 * envelope;
+                    sample += Math.sin(TWO_PI * freq * 3 * t) * 0.08 * envelope;
+                    sample += Math.sin(TWO_PI * freq * 5 * t) * 0.03 * envelope;
+
+                    // 3) バイノーラルビート風ゆらぎ (±1.5Hz)
+                    sample += Math.sin(TWO_PI * (freq + 1.5) * t) * 0.10 * envelope;
+
+                    // 4) 名前charMap周波数を倍音レイヤーとして重畳
+                    for (let idx = 0; idx < chars.length; idx++) {
+                        const charFreq = charMap[chars[idx]];
+                        if (!charFreq) continue;
+                        const charPhaseOffset = idx * 0.3;
+                        const charAmp = 0.08 / chars.length;
+                        if (t > charPhaseOffset) {
+                            // 文字ごとにフェードイン (0.5秒かけて)
+                            const charEnv = Math.min(1, (t - charPhaseOffset) / 0.5);
+                            sample += Math.sin(TWO_PI * charFreq * t) * charAmp * envelope * charEnv;
+                        }
+                    }
+
+                    buffer[i] = sample;
                 }
-                this.finalAudioBuffer = buffer; // メモリに保存
-                this.audioDuration = duration; // 長さを保存
+
+                // 5) 簡易ディレイベースリバーブ
+                const delays = [
+                    { time: 0.050, decay: 0.3 },
+                    { time: 0.120, decay: 0.2 },
+                    { time: 0.200, decay: 0.12 },
+                    { time: 0.350, decay: 0.06 }
+                ];
+                const reverbBuf = new Float32Array(samples);
+                for (let i = 0; i < samples; i++) {
+                    reverbBuf[i] = buffer[i];
+                }
+                for (const d of delays) {
+                    const delaySamples = Math.round(d.time * sampleRate);
+                    for (let i = delaySamples; i < samples; i++) {
+                        reverbBuf[i] += buffer[i - delaySamples] * d.decay;
+                    }
+                }
+
+                // ノーマライズ (クリッピング防止)
+                let peak = 0;
+                for (let i = 0; i < samples; i++) {
+                    const abs = Math.abs(reverbBuf[i]);
+                    if (abs > peak) peak = abs;
+                }
+                const gain = peak > 0.95 ? 0.95 / peak : 1;
+                for (let i = 0; i < samples; i++) {
+                    reverbBuf[i] *= gain;
+                }
+
+                this.finalAudioBuffer = reverbBuf;
+                this.audioDuration = duration;
             },
 
             // ★追加: 最終波形を描画する関数
@@ -553,12 +720,21 @@
                 const ctx = document.getElementById('radarChart').getContext('2d');
                 Chart.defaults.color = '#64748b'; Chart.defaults.borderColor = 'rgba(148, 163, 184, 0.1)';
                 if(this.chart) this.chart.destroy();
+
+                // 算命学 IDEAL: 守護五行を強調したスコア
+                const gogyoLabels = ["木", "火", "土", "金", "水"];
+                const idealData = gogyoLabels.map(g => {
+                    if (g === this.elements.guardElement) return 100;
+                    if (g === this.elements.myElement) return 70;
+                    return 40;
+                });
+
                 this.chart = new Chart(ctx, {
                     type: 'radar',
                     data: {
                         labels: ['木 (WOOD)', '火 (FIRE)', '土 (EARTH)', '金 (METAL)', '水 (WATER)'],
                         datasets: [
-                            { label: '算命学 (IDEAL)', data: [80, 80, 100, 80, 80], borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.1)', borderWidth: 2, pointRadius: 0 },
+                            { label: '算命学 (IDEAL)', data: idealData, borderColor: '#eab308', backgroundColor: 'rgba(234, 179, 8, 0.1)', borderWidth: 2, pointRadius: 0 },
                             { label: 'お名前音分析 (NAME)', data: this.nameData, borderColor: '#14b8a6', backgroundColor: 'rgba(20, 184, 166, 0.0)', borderWidth: 2, borderDash: [5, 5], pointRadius: 3 },
                             { label: '生体音声 (VOICE)', data: this.recordedData, borderColor: '#d946ef', backgroundColor: 'rgba(217, 70, 239, 0.2)', borderWidth: 2, pointBackgroundColor: '#d946ef' }
                         ]
